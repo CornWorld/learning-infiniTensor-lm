@@ -27,15 +27,13 @@ impl LLamaParams<f32> {
         let get_tensor = |name: &str| {
             let tv = safetensor.tensor(name).unwrap();
             assert_eq!(tv.dtype(), F32);
-            assert_eq!(tv.data().len()%4,0);
-            let mut data = Vec::new();
-            for c in tv.data().chunks_exact(4) {
-                let f32val = f32::from_le_bytes([c[0], c[1], c[2], c[3]]);
-                data.push(f32val);
-            }
+            assert_eq!(tv.data().len() % 4, 0);
+            let data = tv.data().chunks_exact(4).map(
+                |c| f32::from_le_bytes(c.try_into().unwrap())
+            ).collect();
             Tensor::new(data, &tv.shape().to_vec())
         };
-        let get_tensor_from_layers= |name: &str| -> Vec<Tensor<f32>> {
+        let get_tensor_from_layers = |name: &str| -> Vec<Tensor<f32>> {
             (0..config.num_hidden_layers).map(
                 |i| get_tensor(format!("model.layers.{i}.{name}.weight").as_str())
             ).collect()
@@ -55,7 +53,7 @@ impl LLamaParams<f32> {
             w_down: get_tensor_from_layers("mlp.down_proj"),
 
             rms_out_w: get_tensor("model.norm.weight"),
-            lm_head: get_tensor("lm_head.weight")
+            lm_head: get_tensor("lm_head.weight"),
         }
     }
 }
