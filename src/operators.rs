@@ -91,7 +91,7 @@ pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: 
 // hint: this is an element-wise operation
 pub fn silu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
     fn sigmoid(x: f32) -> f32 {
-        1.0 / (1.0 + std::f32::consts::E.powf(-x))
+        1.0 / (1.0 + (-x).exp())
     }
     let len = y.size();
     assert_eq!(len, x.size());
