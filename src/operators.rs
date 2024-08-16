@@ -70,26 +70,66 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
     }
 }
 
+// y_{i, j} = \frac{ w_i * x_{i, j} }{ \sqrt{ \frac{1}{m} \sum_{k=1}^{m}{x_{i,k} ^2} + \epsilon }}
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    let n = y.shape()[0];
+    let m = y.shape()[1];
+    assert_eq!(y.shape(), x.shape());
+    assert_eq!(m, w.shape()[0]);
+
+    let _y = unsafe { y.data_mut() };
+    for i in 0..n {
+        let sum = (0..m).map(|j| x.data()[i * m + j].powi(2)).sum::<f32>();
+        let part2 = (sum / m as f32 + epsilon).sqrt();
+        for j in 0..m {
+            _y[i * m + j] = w.data()[j] * x.data()[i * m + j] / part2;
+        }
+    }
 }
 
 // y = sigmoid(x) * x * y
 // hint: this is an element-wise operation
 pub fn silu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+    fn sigmoid(x: f32) -> f32 {
+        1.0 / (1.0 + std::f32::consts::E.powf(-x))
+    }
+    let len = y.size();
+    assert_eq!(len, x.size());
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
+    let _y = unsafe { y.data_mut() };
+    let _x = x.data();
 
-    todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+    for i in 0..len {
+        let xi = _x.get(i).unwrap();
+        let yi = _y.get_mut(i).unwrap();
+        *yi = sigmoid(*xi) * *xi * *yi;
+    }
 }
 
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    // c:m*n b:n*k a:m*k
+    assert_eq!(c.shape()[0], a.shape()[0]);
+    assert_eq!(c.shape()[1], b.shape()[0]);
+    assert_eq!(a.shape()[1], b.shape()[1]);
+    let m = c.shape()[0];
+    let n = c.shape()[1];
+    let k = a.shape()[1];
+
+    let _c = unsafe { c.data_mut() };
+    _c.iter_mut().for_each(|i| *i *= beta);
+    let _a: Vec<_> = a.data().iter().map(|i| i * alpha).collect();
+    for i in 0..m {
+        for j in 0..n {
+            let ci = i * n + j; // c(i, j)
+            for o in 0..k {
+                let ai = i * k + o; // a(i, o)
+                let bi = j * k + o; // b(j, o)
+                _c[ci] += _a[ai] * b.data()[bi];
+            }
+        }
+    }
 }
 
 // Dot product of two tensors (treated as vectors)

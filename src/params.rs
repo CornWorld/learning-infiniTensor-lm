@@ -1,6 +1,8 @@
 use crate::config::LlamaConfigJson;
 use crate::tensor::Tensor;
-use safetensors::SafeTensors;
+use safetensors::{Dtype, SafeTensors, View};
+use safetensors::Dtype::F32;
+
 pub struct LLamaParams<T> {
     // token_id to embedding lookup table
     pub embedding_table: Tensor<T>, // (vocab_size, dim)
@@ -22,14 +24,38 @@ pub struct LLamaParams<T> {
 
 impl LLamaParams<f32> {
     pub fn from_safetensors(safetensor: &SafeTensors, config: &LlamaConfigJson) -> Self {
-        todo!("实现从safetensors文件的模型参数加载");
-        // let get_tensor: impl Fn(&str) -> Tensor<f32> = |name: &str| {
-        // ...    
-        // };
-        
-        // LLamaParams {
-        //     embedding_table: get_tensor(...),
-        //     ...
-        // }
+        let get_tensor = |name: &str| {
+            let tv = safetensor.tensor(name).unwrap();
+            assert_eq!(tv.dtype(), F32);
+            assert_eq!(tv.data().len()%4,0);
+            let mut data = Vec::new();
+            for c in tv.data().chunks_exact(4) {
+                let f32val = f32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+                data.push(f32val);
+            }
+            Tensor::new(data, &tv.shape().to_vec())
+        };
+        let get_tensor_from_layers= |name: &str| -> Vec<Tensor<f32>> {
+            (0..config.num_hidden_layers).map(
+                |i| get_tensor(format!("model.layers.{i}.{name}.weight").as_str())
+            ).collect()
+        };
+        LLamaParams {
+            embedding_table: get_tensor("lm_head.weight"),
+
+            rms_att_w: get_tensor_from_layers("input_layernorm"),
+            wq: get_tensor_from_layers("self_attn.q_proj"),
+            wk: get_tensor_from_layers("self_attn.k_proj"),
+            wv: get_tensor_from_layers("self_attn.v_proj"),
+            wo: get_tensor_from_layers("self_attn.o_proj"),
+
+            rms_ffn_w: get_tensor_from_layers("post_attention_layernorm"),
+            w_up: get_tensor_from_layers("mlp.up_proj"),
+            w_gate: get_tensor_from_layers("mlp.gate_proj"),
+            w_down: get_tensor_from_layers("mlp.down_proj"),
+
+            rms_out_w: get_tensor("model.norm.weight"),
+            lm_head: get_tensor("lm_head.weight")
+        }
     }
 }
