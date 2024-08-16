@@ -100,9 +100,7 @@ pub fn silu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
     let _x = x.data();
 
     for i in 0..len {
-        let xi = _x.get(i).unwrap();
-        let yi = _y.get_mut(i).unwrap();
-        *yi = sigmoid(*xi) * *xi * *yi;
+        _y[i] = sigmoid(_x[i]) * _x[i] * _y[i];
     }
 }
 
